@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   AlertTriangle,
+  FileBadge,
 } from "lucide-react";
 import { DatabaseProvider, useDatabase } from "./components/DatabaseContext";
 import { UserForm, CategoryForm, RecordForm } from "./components/Forms";
@@ -29,6 +30,7 @@ import {
   generateSQLQueries,
   generateDocumentation,
 } from "./services/aiService";
+import { FULL_TECH_SPEC } from "./services/projectSpec";
 
 // --- Utils & Custom Renderers ---
 
@@ -322,6 +324,21 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
           {line.replace(/^\d+\. /, "")}
         </li>
       );
+    } else if (line.startsWith("![")) {
+      // Image parsing: ![Alt](Url)
+      const match = line.match(/!\[(.*?)\]\((.*?)\)/);
+      if (match) {
+        elements.push(
+          <div key={i} className="my-6">
+            <img
+              src={match[2]}
+              alt={match[1]}
+              className="w-full rounded-xl border border-zinc-200 shadow-sm"
+            />
+            <p className="text-center text-xs text-zinc-400 mt-2">{match[1]}</p>
+          </div>
+        );
+      }
     } else if (line === "") {
       elements.push(<div key={i} className="h-2"></div>);
     } else {
@@ -641,6 +658,10 @@ const DocumentationViewer: React.FC<DocsViewerProps> = ({ docs, setDocs }) => {
     setLoading(false);
   };
 
+  const handleLoadFullSpec = () => {
+    setDocs(FULL_TECH_SPEC);
+  };
+
   return (
     <div className="h-full flex flex-col space-y-6 opacity-0 animate-fade-in-up pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-zinc-200">
@@ -650,21 +671,30 @@ const DocumentationViewer: React.FC<DocsViewerProps> = ({ docs, setDocs }) => {
             Техническая документация
           </h2>
           <p className="text-zinc-500 text-sm mt-1">
-            Автоматическое описание структуры
+            Автоматическое описание структуры и API
           </p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="w-full md:w-auto flex items-center justify-center space-x-2 bg-white text-black border-2 border-black px-5 py-2.5 rounded-xl hover:bg-black hover:text-white transition-all font-bold disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-black"
-        >
-          {loading ? (
-            <Loader2 className="animate-spin" size={18} />
-          ) : (
-            <FileText size={18} />
-          )}
-          <span>Создать документ</span>
-        </button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button
+            onClick={handleLoadFullSpec}
+            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-zinc-100 text-black border border-zinc-200 px-5 py-2.5 rounded-xl hover:bg-zinc-200 transition-all font-bold"
+          >
+            <FileBadge size={18} />
+            <span>Полное ТЗ</span>
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-black text-white px-5 py-2.5 rounded-xl hover:bg-zinc-800 transition-all font-bold disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <FileText size={18} />
+            )}
+            <span>Создать отчет (AI)</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 md:p-12 overflow-auto">
@@ -673,7 +703,7 @@ const DocumentationViewer: React.FC<DocsViewerProps> = ({ docs, setDocs }) => {
         ) : (
           <div className="flex flex-col items-center justify-center h-48 md:h-full text-zinc-400 space-y-4">
             <BookOpen size={48} strokeWidth={1} />
-            <p>Нажмите "Создать документ" для генерации отчета</p>
+            <p>Нажмите "Создать отчет" или "Полное ТЗ" для просмотра</p>
           </div>
         )}
       </div>
@@ -739,7 +769,7 @@ const Dashboard = () => {
           <p className="text-zinc-300 mb-8 text-base md:text-lg leading-relaxed">
             Учебная система для практики управления данными. Используйте меню
             слева для навигации между таблицами, генерируйте SQL-запросы в
-            лаборатории или создавайте документацию.
+            лаборатории или создавайте документацию с помощью ИИ.
           </p>
 
           <div className="inline-flex items-center space-x-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/10">
@@ -758,6 +788,48 @@ const Dashboard = () => {
     </div>
   );
 };
+
+// Error Boundary
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: any }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-screen flex items-center justify-center bg-zinc-50 p-6">
+          <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-red-100">
+            <h1 className="text-2xl font-bold text-red-600 mb-4 flex items-center gap-2">
+              <AlertTriangle /> Произошла ошибка
+            </h1>
+            <p className="text-zinc-600 mb-6">
+              Приложение столкнулось с критической ошибкой рендеринга.
+            </p>
+            <div className="bg-zinc-100 p-4 rounded-lg overflow-auto max-h-40 mb-6 text-xs font-mono text-zinc-800 border border-zinc-200">
+              {this.state.error?.toString()}
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-zinc-800 transition-all"
+            >
+              Перезагрузить страницу
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -1093,9 +1165,11 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <DatabaseProvider>
-      <AppContent />
-    </DatabaseProvider>
+    <ErrorBoundary>
+      <DatabaseProvider>
+        <AppContent />
+      </DatabaseProvider>
+    </ErrorBoundary>
   );
 };
 
